@@ -3,19 +3,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 import mysql.connector
+from datetime import datetime
 
 app = FastAPI()
 
-
+# Middleware CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_connection():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",    
-        password="",     
-        database="creditwise"
-    )
-
+    try:
+        connection = mysql.connector.connect(
+            host="localhost",
+            user="root",    
+            password="",     
+            database="creditwise"
+        )
+        print("✅ Conexión a la base de datos exitosa")
+        return connection
+    except mysql.connector.Error as err:
+        print(f"❌ Error de conexión a la base de datos: {err}")
+        return None
 
 class Usuario(BaseModel):
     Nombre: str
@@ -64,282 +77,520 @@ class Actividad(BaseModel):
     Dificultad: str
     MisionID: int
 
+# Endpoints de verificación
+@app.get("/")
+def read_root():
+    return {"message": "API CreditWise funcionando correctamente"}
 
+@app.get("/health")
+def health_check():
+    try:
+        conn = get_connection()
+        if conn and conn.is_connected():
+            conn.close()
+            return {"status": "healthy", "database": "connected"}
+        else:
+            return {"status": "unhealthy", "database": "disconnected"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+# CRUD USUARIOS
 @app.post("/usuarios")
 def crear_usuario(usuario: Usuario):
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+    print(f"🔵 Intentando crear usuario: {usuario.Documento}")
+    
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
 
-    cursor.execute("SELECT * FROM usuario WHERE Documento=%s", (usuario.Documento,))
-    if cursor.fetchone():
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=400, detail="Usuario ya existe")
+        # Verificar si el usuario existe
+        cursor.execute("SELECT * FROM usuario WHERE Documento=%s", (usuario.Documento,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Usuario ya existe")
 
-    cursor.execute(
-        "INSERT INTO usuario (Nombre, Contrasena, Documento, PuntajeCrediticio, NivelProgreso) VALUES (%s,%s,%s,%s,%s)",
-        (usuario.Nombre, usuario.Contrasena, usuario.Documento, usuario.PuntajeCrediticio, usuario.NivelProgreso)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"mensaje": "Usuario creado correctamente"}
+        # Insertar nuevo usuario
+        cursor.execute(
+            "INSERT INTO usuario (Nombre, Contrasena, Documento, PuntajeCrediticio, NivelProgreso) VALUES (%s, %s, %s, %s, %s)",
+            (usuario.Nombre, usuario.Contrasena, usuario.Documento, usuario.PuntajeCrediticio, usuario.NivelProgreso)
+        )
+        conn.commit()
+        user_id = cursor.lastrowid
+        
+        print(f"✅ Usuario creado exitosamente: ID {user_id}")
+        return {
+            "mensaje": "Usuario creado correctamente",
+            "id": user_id,
+            "nombre": usuario.Nombre
+        }
+        
+    except mysql.connector.Error as err:
+        print(f"❌ Error de MySQL: {err}")
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {err}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error inesperado: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.get("/usuarios")
 def obtener_usuarios():
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM usuario")
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return data
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM usuario")
+        data = cursor.fetchall()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.get("/usuarios/{id}")
 def obtener_usuario(id: int):
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM usuario WHERE ID=%s", (id,))
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    return user
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM usuario WHERE ID=%s", (id,))
+        user = cursor.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        return user
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.put("/usuarios/{id}")
 def actualizar_usuario(id: int, usuario: Usuario):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE usuario SET Nombre=%s, Contrasena=%s, Documento=%s, PuntajeCrediticio=%s, NivelProgreso=%s WHERE ID=%s",
-        (usuario.Nombre, usuario.Contrasena, usuario.Documento, usuario.PuntajeCrediticio, usuario.NivelProgreso, id)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"mensaje": "Usuario actualizado"}
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE usuario SET Nombre=%s, Contrasena=%s, Documento=%s, PuntajeCrediticio=%s, NivelProgreso=%s WHERE ID=%s",
+            (usuario.Nombre, usuario.Contrasena, usuario.Documento, usuario.PuntajeCrediticio, usuario.NivelProgreso, id)
+        )
+        conn.commit()
+        return {"mensaje": "Usuario actualizado"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.delete("/usuarios/{id}")
 def eliminar_usuario(id: int):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM usuario WHERE ID=%s", (id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"mensaje": "Usuario eliminado"}
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM usuario WHERE ID=%s", (id,))
+        conn.commit()
+        return {"mensaje": "Usuario eliminado"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
-# ---------------- LOGIN ----------------
+# LOGIN Y REGISTER
 @app.post("/login")
 def login(data: dict = Body(...)):
     documento = data.get("documento")
     contrasena = data.get("contrasena")
 
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM usuario WHERE Documento=%s AND Contrasena=%s", (documento, contrasena))
-    user = cursor.fetchone()
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM usuario WHERE Documento=%s AND Contrasena=%s", (documento, contrasena))
+        user = cursor.fetchone()
 
-    if not user:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+        if not user:
+            raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
-    # Obtener progreso
-    cursor.execute("SELECT * FROM progresousuario WHERE UsuarioID=%s", (user["ID"],))
-    progreso = cursor.fetchone()
+        # Obtener progreso
+        cursor.execute("SELECT * FROM progresousuario WHERE UsuarioID=%s", (user["ID"],))
+        progreso = cursor.fetchone()
 
-    cursor.close()
-    conn.close()
+        return {
+            "usuario": user,
+            "progreso": progreso if progreso else {"PorcentajeCompletado": 0}
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
-    return {
-        "usuario": user,
-        "progreso": progreso if progreso else {"PorcentajeCompletado": 0}
-    }
-
-# ---------------- REGISTER ----------------
 @app.post("/register")
 def register(usuario: Usuario):
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
 
-    # ¿Existe ya?
-    cursor.execute("SELECT * FROM usuario WHERE Documento=%s", (usuario.Documento,))
-    if cursor.fetchone():
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=400, detail="Usuario ya existe")
+        # ¿Existe ya?
+        cursor.execute("SELECT * FROM usuario WHERE Documento=%s", (usuario.Documento,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Usuario ya existe")
 
-    # Insertar usuario nuevo
-    cursor.execute(
-        "INSERT INTO usuario (Nombre, Contrasena, Documento, PuntajeCrediticio, NivelProgreso) VALUES (%s,%s,%s,%s,%s)",
-        (usuario.Nombre, usuario.Contrasena, usuario.Documento, 0, 0)
-    )
-    conn.commit()
+        # Insertar usuario nuevo
+        cursor.execute(
+            "INSERT INTO usuario (Nombre, Contrasena, Documento, PuntajeCrediticio, NivelProgreso) VALUES (%s, %s, %s, %s, %s)",
+            (usuario.Nombre, usuario.Contrasena, usuario.Documento, 0, 0)
+        )
+        conn.commit()
+        user_id = cursor.lastrowid
 
-    user_id = cursor.lastrowid
+        # Crear progreso inicial en 0
+        cursor.execute(
+            "INSERT INTO progresousuario (Estado, PorcentajeCompletado, UsuarioID, MisionID) VALUES (%s, %s, %s, %s)",
+            ("iniciado", 0, user_id, 1)
+        )
+        conn.commit()
 
-    # Crear progreso inicial en 0
-    cursor.execute(
-        "INSERT INTO progresousuario (Estado, PorcentajeCompletado, UsuarioID, MisionID) VALUES (%s,%s,%s,%s)",
-        ("iniciado", 0, user_id, 1)
-    )
-    conn.commit()
+        return {
+            "mensaje": "Usuario registrado correctamente",
+            "usuario": {
+                "ID": user_id,
+                "Nombre": usuario.Nombre,
+                "Documento": usuario.Documento
+            },
+            "progreso": {"PorcentajeCompletado": 0}
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
-    cursor.close()
-    conn.close()
-
-    return {
-        "mensaje": "Usuario registrado correctamente",
-        "usuario": {
-            "ID": user_id,
-            "Nombre": usuario.Nombre,
-            "Documento": usuario.Documento
-        },
-        "progreso": {"PorcentajeCompletado": 0}
-    }
-
-# ---------------- CRUD PROGRESO USUARIO ----------------
+# CRUD PROGRESO USUARIO
 @app.post("/progresos")
 def crear_progreso(progreso: ProgresoUsuario):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO progresousuario (Estado, PorcentajeCompletado, UsuarioID, MisionID) VALUES (%s,%s,%s,%s)",
-        (progreso.Estado, progreso.PorcentajeCompletado, progreso.UsuarioID, progreso.MisionID)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"mensaje": "Progreso creado"}
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO progresousuario (Estado, PorcentajeCompletado, UsuarioID, MisionID) VALUES (%s, %s, %s, %s)",
+            (progreso.Estado, progreso.PorcentajeCompletado, progreso.UsuarioID, progreso.MisionID)
+        )
+        conn.commit()
+        return {"mensaje": "Progreso creado"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.get("/progresos")
 def obtener_progresos():
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM progresousuario")
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return data
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM progresousuario")
+        data = cursor.fetchall()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
-# ---------------- CRUD NOTIFICACION ----------------
+# CRUD NOTIFICACION
 @app.post("/notificaciones")
 def crear_notificacion(notificacion: Notificacion):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO notificacion (UsuarioID, Mensaje, FechaEnvio, Leida) VALUES (%s,%s,%s,%s)",
-        (notificacion.UsuarioID, notificacion.Mensaje, notificacion.FechaEnvio, notificacion.Leida)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"mensaje": "Notificación creada"}
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO notificacion (UsuarioID, Mensaje, FechaEnvio, Leida) VALUES (%s, %s, %s, %s)",
+            (notificacion.UsuarioID, notificacion.Mensaje, notificacion.FechaEnvio, notificacion.Leida)
+        )
+        conn.commit()
+        return {"mensaje": "Notificación creada"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.get("/notificaciones")
 def obtener_notificaciones():
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM notificacion")
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return data
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM notificacion")
+        data = cursor.fetchall()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
-# ---------------- CRUD MISION ----------------
+# CRUD MISION
 @app.post("/misiones")
 def crear_mision(mision: Mision):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO mision (Titulo, Descripcion, Dificultad, RecompensaPuntos, Documento) VALUES (%s,%s,%s,%s,%s)",
-        (mision.Titulo, mision.Descripcion, mision.Dificultad, mision.RecompensaPuntos, mision.Documento)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"mensaje": "Misión creada"}
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO mision (Titulo, Descripcion, Dificultad, RecompensaPuntos, Documento) VALUES (%s, %s, %s, %s, %s)",
+            (mision.Titulo, mision.Descripcion, mision.Dificultad, mision.RecompensaPuntos, mision.Documento)
+        )
+        conn.commit()
+        return {"mensaje": "Misión creada"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.get("/misiones")
 def obtener_misiones():
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM mision")
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return data
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM mision")
+        data = cursor.fetchall()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
-# ---------------- CRUD EVALUACION ----------------
+# CRUD EVALUACION
 @app.post("/evaluaciones")
 def crear_evaluacion(evaluacion: Evaluacion):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO evaluacion (Tipo, Resultado, PuntajeObtenido, Feedback, Dificultad, MisionID) VALUES (%s,%s,%s,%s,%s,%s)",
-        (evaluacion.Tipo, evaluacion.Resultado, evaluacion.PuntajeObtenido, evaluacion.Feedback, evaluacion.Dificultad, evaluacion.MisionID)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"mensaje": "Evaluación creada"}
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO evaluacion (Tipo, Resultado, PuntajeObtenido, Feedback, Dificultad, MisionID) VALUES (%s, %s, %s, %s, %s, %s)",
+            (evaluacion.Tipo, evaluacion.Resultado, evaluacion.PuntajeObtenido, evaluacion.Feedback, evaluacion.Dificultad, evaluacion.MisionID)
+        )
+        conn.commit()
+        return {"mensaje": "Evaluación creada"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.get("/evaluaciones")
 def obtener_evaluaciones():
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM evaluacion")
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return data
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM evaluacion")
+        data = cursor.fetchall()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
-# ---------------- CRUD DOLARVALOR ----------------
+# CRUD DOLARVALOR
 @app.post("/dolarvalor")
 def crear_dolarvalor(dolar: DolarValor):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO dolarvalor (fecha, valorVenta, fechaActualizacion, fuente) VALUES (%s,%s,%s,%s)",
-        (dolar.fecha, dolar.valorVenta, dolar.fechaActualizacion, dolar.fuente)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"mensaje": "Valor dólar creado"}
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO dolarvalor (fecha, valorVenta, fechaActualizacion, fuente) VALUES (%s, %s, %s, %s)",
+            (dolar.fecha, dolar.valorVenta, dolar.fechaActualizacion, dolar.fuente)
+        )
+        conn.commit()
+        return {"mensaje": "Valor dólar creado"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.get("/dolarvalor")
 def obtener_dolarvalores():
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM dolarvalor")
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return data
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM dolarvalor")
+        data = cursor.fetchall()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
-# ---------------- CRUD ACTIVIDAD ----------------
+# CRUD ACTIVIDAD
 @app.post("/actividades")
 def crear_actividad(actividad: Actividad):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO actividad (Titulo, Contenido, Categoria, Dificultad, MisionID) VALUES (%s,%s,%s,%s,%s)",
-        (actividad.Titulo, actividad.Contenido, actividad.Categoria, actividad.Dificultad, actividad.MisionID)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"mensaje": "Actividad creada"}
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO actividad (Titulo, Contenido, Categoria, Dificultad, MisionID) VALUES (%s, %s, %s, %s, %s)",
+            (actividad.Titulo, actividad.Contenido, actividad.Categoria, actividad.Dificultad, actividad.MisionID)
+        )
+        conn.commit()
+        return {"mensaje": "Actividad creada"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.get("/actividades")
 def obtener_actividades():
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM actividad")
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return data
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        if conn is None:
+            raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
+        
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM actividad")
+        data = cursor.fetchall()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="debug")
