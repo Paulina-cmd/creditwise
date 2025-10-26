@@ -1,33 +1,71 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import MenuMas from "../components/MenuMas";
 import "../assets/css/estilos.css";
 
-function Missions() {
+export default function Missions() {
+  const navigate = useNavigate();
   const [misiones, setMisiones] = useState([
-    { id: 1, title: "✅ Completa tu perfil", desc: "Agrega tus datos personales para mejorar tus recomendaciones.", progress: 100, estado: "Completada", clase: "completada", dificultad: "Fácil", bloqueada: false },
-    { id: 2, title: "💸 Registra un gasto", desc: "Empieza a llevar control de tus finanzas registrando tu primer gasto.", progress: 0, estado: "Pendiente", clase: "pendiente", dificultad: "Media", bloqueada: false },
-    { id: 3, title: "🎯 Crea una meta de ahorro", desc: "Define una meta mensual y comienza a ahorrar desde hoy.", progress: 0, estado: "Pendiente", clase: "pendiente", dificultad: "Media", bloqueada: true },
-    { id: 4, title: "📊 Analiza tu consumo", desc: "Revisa tus gráficos de gastos para detectar oportunidades de ahorro.", progress: 0, estado: "Pendiente", clase: "pendiente", dificultad: "Difícil", bloqueada: true },
-    { id: 5, title: "💡 Lee un consejo financiero", desc: "Explora nuestras recomendaciones para mejorar tu vida crediticia.", progress: 0, estado: "Pendiente", clase: "pendiente", dificultad: "Fácil", bloqueada: true },
+    {
+      id: 1,
+      title: "🧩 Entiende qué es el crédito",
+      desc: "Aprende qué es, sus tipos y cómo diferenciar una deuda buena de una mala.",
+      dificultad: "Media",
+      progress: 0,
+      estado: "En progreso",
+      clase: "pendiente",
+      bloqueada: false,
+    },
+    {
+      id: 2,
+      title: "💳 Aprende cómo se calcula tu puntaje crediticio",
+      desc: "Descubre los factores que afectan tu historial y cómo mejorarlo.",
+      dificultad: "Alta",
+      progress: 0,
+      estado: "Bloqueada",
+      clase: "bloqueada",
+      bloqueada: true,
+    },
   ]);
 
   const [selectedMision, setSelectedMision] = useState(null);
 
-  // Función para completar misión y desbloquear la siguiente
-  const completarMision = (id) => {
+  // 🔵 Revisar misiones completadas al cargar
+  useEffect(() => {
+    const completadas = JSON.parse(localStorage.getItem("misionesCompletadas")) || [];
+
     setMisiones((prev) =>
-      prev.map((mision, idx) => {
-        if (mision.id === id) {
-          return { ...mision, estado: "Completada", progress: 100, clase: "completada" };
+      prev.map((m, index) => {
+        if (completadas.includes(m.id)) {
+          return { ...m, progress: 100, estado: "Completada", clase: "completada", bloqueada: false };
         }
-        // Desbloquear la siguiente misión
-        if (prev[idx - 1]?.id === id) {
-          return { ...mision, bloqueada: false };
+        // Desbloquear la siguiente misión si la anterior está completada
+        if (index > 0 && completadas.includes(prev[index - 1].id)) {
+          return { ...m, bloqueada: false, estado: "En progreso", clase: "pendiente" };
         }
-        return mision;
+        return m;
       })
     );
-    setSelectedMision(null); // cerrar modal
+  }, []);
+
+  // 🔵 Función para marcar misión como completada desde MissionTask
+  const completarMision = (id) => {
+    const updated = misiones.map((m, index) => {
+      if (m.id === id) {
+        return { ...m, progress: 100, estado: "Completada", clase: "completada", bloqueada: false };
+      }
+      // Desbloquear siguiente misión
+      if (index > 0 && misiones[index - 1].id === id) {
+        return { ...m, bloqueada: false, estado: "En progreso", clase: "pendiente" };
+      }
+      return m;
+    });
+    setMisiones(updated);
+
+    // Guardar progreso en localStorage
+    const completadas = JSON.parse(localStorage.getItem("misionesCompletadas")) || [];
+    if (!completadas.includes(id)) completadas.push(id);
+    localStorage.setItem("misionesCompletadas", JSON.stringify(completadas));
   };
 
   return (
@@ -36,40 +74,59 @@ function Missions() {
       <aside className="sidebar">
         <h2 className="logo">CreditWise</h2>
         <nav>
-          <a href="/home"><img src="/img/hogar.png" alt="Inicio" className="icon" /> Inicio</a>
-          <a href="/missions" className="active"><img src="/img/medalla-de-oro.png" alt="Misiones" className="icon" /> Misiones</a>
-          <a href="/dollar"><img src="/img/inversion.png" alt="Dólar" className="icon" /> Dólar</a>
-          <a href="/recommendation"><img src="/img/recomendacion.png" alt="Recomendaciones" className="icon" /> Recomendaciones</a>
-          <a href="/history"><img src="/img/historial-de-transacciones.png" alt="Historial" className="icon" /> Historial</a>
-          <a href="/profile"><img src="/img/usuario.png" alt="Perfil" className="icon" /> Perfil</a>
+          <a href="/home">
+            <img src="/img/hogar.png" alt="Inicio" className="icon" /> Inicio
+          </a>
+          <a href="/missions" className="active">
+            <img src="/img/medalla-de-oro.png" alt="Misiones" className="icon" /> Misiones
+          </a>
+          <a href="/dollar">
+            <img src="/img/inversion.png" alt="Dólar" className="icon" /> Dólar
+          </a>
+          <a href="/recommendation">
+            <img src="/img/recomendacion.png" alt="Recomendaciones" className="icon" /> Recomendaciones
+          </a>
+          <a href="/history">
+            <img src="/img/historial-de-transacciones.png" alt="Historial" className="icon" /> Historial
+          </a>
+          <a href="/profile">
+            <img src="/img/usuario.png" alt="Perfil" className="icon" /> Perfil
+          </a>
           <MenuMas />
         </nav>
       </aside>
 
-      {/* Main Content */}
+      {/* Contenido principal */}
       <main className="main-content">
         <header className="header">
           <h1>Misiones</h1>
-          <div className="acciones">
-            <button className="btn-icon"><img src="/img/campana.png" alt="Notificaciones" /></button>
-            <button className="btn-icon"><img src="/img/configuraciones.png" alt="Configuración" /></button>
-          </div>
         </header>
 
-        {/* Sección Misiones */}
         <section className="misiones">
           {misiones.map((mision) => (
             <div
               key={mision.id}
-              className={`card mision ${mision.clase} ${mision.bloqueada ? "bloqueada" : ""}`}
+              className={`card mision ${mision.clase}`}
               onClick={() => !mision.bloqueada && setSelectedMision(mision)}
             >
               <h3>{mision.title}</h3>
               <p>{mision.desc}</p>
-              <div className="progress">
-                <div className="progress-bar" style={{ width: `${mision.progress}%` }}></div>
+
+              {/* Barra de progreso */}
+              <div className="progress-section">
+                <div className="progress-container">
+                  <div
+                    className={`progress-bar ${mision.bloqueada ? "progress-bar-blocked" : ""}`}
+                    style={{ width: `${mision.progress}%` }}
+                  ></div>
+                </div>
+                <span className="progress-text">{mision.progress}%</span>
               </div>
-              <span className="estado">{mision.bloqueada ? "🔒 Bloqueada" : mision.estado}</span>
+
+              {/* Estado */}
+              <span className={`estado ${mision.bloqueada ? "bloqueada" : "activa"}`}>
+                {mision.bloqueada ? "🔒 Bloqueada" : mision.estado}
+              </span>
             </div>
           ))}
         </section>
@@ -79,47 +136,32 @@ function Missions() {
       {selectedMision && (
         <div className="modal-overlay" onClick={() => setSelectedMision(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSelectedMision(null)}>✖</button>
-            
+            <button className="modal-close" onClick={() => setSelectedMision(null)}>
+              ✖
+            </button>
             <h2>{selectedMision.title}</h2>
-            <p className="detalle">{selectedMision.desc}</p>
-
-            <div className="info-extra">
-              <div className="estado-box">
-                <strong>Estado:</strong>{" "}
-                <span className={`estado ${selectedMision.clase}`}>{selectedMision.estado}</span>
-              </div>
-              <div className="dificultad-box">
-                <strong>Dificultad:</strong> {selectedMision.dificultad}
-              </div>
-            </div>
-
-            <div className="progress">
-              <div className="progress-bar" style={{ width: `${selectedMision.progress}%` }}></div>
-            </div>
-
-            <div className="modal-actions">
-              {selectedMision.estado !== "Completada" && (
-                <button className="btn-ingresar" onClick={() => completarMision(selectedMision.id)}>
-                  Realizar
-                </button>
-              )}
-            </div>
+            <p>{selectedMision.desc}</p>
+            <p>
+              <strong>Dificultad:</strong> {selectedMision.dificultad}
+            </p>
+            <button
+              className="btn-ingresar"
+              onClick={() =>
+                navigate("/mission-task", {
+                  state: { mision: selectedMision, completarMision },
+                })
+              }
+            >
+              Realizar misión
+            </button>
           </div>
         </div>
       )}
 
-      {/* Footer */}
       <footer className="footer">
         <p>© {new Date().getFullYear()} CreditWise. Todos los derechos reservados.</p>
-        <div className="footer-links">
-          <a href="#">Política de Privacidad</a>
-          <a href="#">Términos y Condiciones</a>
-          <a href="#">Contacto</a>
-        </div>
       </footer>
     </div>
   );
 }
 
-export default Missions;

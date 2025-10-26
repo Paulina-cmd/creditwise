@@ -1,7 +1,0 @@
-fastapi
-uvicorn[standard]
-sqlalchemy
-pydantic
-python-dotenv
-alembic     # opcional si quieres migraciones
-databases   # opcional si prefieres async DB (no usado en el ejemplo)

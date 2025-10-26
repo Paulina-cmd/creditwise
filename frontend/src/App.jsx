@@ -11,6 +11,7 @@ import Terminos from "./pages/Terminos";
 import Navbar from "./components/Navbar";
 import Historial from "./pages/History";
 import Configuraciones from "./pages/Configuraciones";
+import MissionTask from "./pages/MissionTask";
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
         <Route path="/terminos" element={<Terminos />} />
         <Route path="/history" element={<Historial />} />
         <Route path="/settings" element={<Configuraciones />} />
+        <Route path="/mission-task" element={<MissionTask />} />
         
 
 

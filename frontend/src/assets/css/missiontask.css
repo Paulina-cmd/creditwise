@@ -1,0 +1,137 @@
+/* 🎯 missiontask.css */
+/* Estilos exclusivos para la pantalla de realización de misiones */
+
+.fullscreen-mision {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e0f7f1, #c8e6f9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  position: relative;
+  font-family: "Poppins", sans-serif;
+}
+
+.mision-contenido {
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  max-width: 700px;
+  width: 100%;
+  padding: 2.5rem;
+  position: relative;
+  animation: fadeIn 0.6s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.mision-contenido:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+.mision-contenido h2 {
+  font-size: 1.9rem;
+  color: #0d9488;
+  text-align: center;
+  margin-bottom: 1.2rem;
+}
+
+.mision-contenido p {
+  font-size: 1.1rem;
+  color: #374151;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.mision-contenido ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+
+.mision-contenido li {
+  font-size: 1.05rem;
+  color: #334155;
+  margin: 0.5rem 0;
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 0.7rem 1rem;
+  transition: background 0.3s ease;
+}
+
+.mision-contenido li:hover {
+  background: #e2e8f0;
+}
+
+/* Botón principal */
+.btn-ingresar {
+  background-color: #0d9488;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 0.9rem 2rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-ingresar:hover {
+  background-color: #0f766e;
+  transform: scale(1.05);
+}
+
+/* Botón cerrar */
+.close-fullscreen {
+  position: absolute;
+  top: 1.2rem;
+  right: 1.2rem;
+  background: #f87171;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.close-fullscreen:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Contenedor del botón inferior */
+.modal-actions {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+/* Animación de entrada */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 🎉 Misión completada */
+.mision-contenido h2:has(+ p:contains("Has aprendido")) {
+  color: #16a34a;
+}
+
+.mision-contenido h2::after {
+  content: "";
+  display: block;
+  width: 60px;
+  height: 4px;
+  background: #0d9488;
+  margin: 10px auto;
+  border-radius: 2px;
+}

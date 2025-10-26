@@ -8,7 +8,13 @@ function Login() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  // 🧩 Usuarios locales para pruebas
+  const usuariosSimulados = [
+    { Documento: "123456", Contrasena: "1234", Nombre: "Sara", Rol: "Usuario" },
+    { Documento: "987654", Contrasena: "admin", Nombre: "Administrador", Rol: "Admin" },
+  ];
+
+  const handleLogin = (e) => {
     e.preventDefault();
     setError("");
 
@@ -17,31 +23,19 @@ function Login() {
       return;
     }
 
-    try {
-      const response = await fetch("http://127.0.0.1:8000/usuarios/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          Documento: documento,
-          Contrasena: contrasena,
-        }),
-      });
+    // 🔍 Buscar usuario local
+    const usuarioEncontrado = usuariosSimulados.find(
+      (u) => u.Documento === documento && u.Contrasena === contrasena
+    );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.detail || "Documento o contraseña incorrectos");
-        return;
-      }
-
-      // Guardar usuario en localStorage
-      localStorage.setItem("usuario", JSON.stringify(data.usuario));
+    if (usuarioEncontrado) {
+      // Guardar datos simulados en localStorage
+      localStorage.setItem("usuario", JSON.stringify(usuarioEncontrado));
 
       // Redirigir al home
       navigate("/home");
-    } catch (err) {
-      console.error("Error al iniciar sesión:", err);
-      setError("⚠️ Error al conectar con el servidor");
+    } else {
+      setError("Documento o contraseña incorrectos");
     }
   };
 
